@@ -486,7 +486,7 @@
         function getHatimPersonProgress(personName) {
             let completed = 0;
             for (let juz = 1; juz <= totalJuz; juz++) {
-                if (hatimProgress[juz][personName]) {
+                if (hatimProgress[juz] && hatimProgress[juz][personName]) {
                     completed++;
                 }
             }
@@ -498,7 +498,7 @@
             
             family.forEach(person => {
                 for (let juz = 1; juz <= totalJuz; juz++) {
-                    if (!hatimProgress[juz][person.name]) {
+                    if (!hatimProgress[juz] || !hatimProgress[juz][person.name]) {
                         nextReadings.push({
                             person: person.name,
                             juz: juz,
@@ -554,7 +554,7 @@
             let html = '<h2>📖 Sırada Okunacak</h2><div class="reading-grid">';
             
             nextReadings.forEach(reading => {
-                const isCompleted = hatimProgress[reading.juz][reading.person];
+                const isCompleted = hatimProgress[reading.juz] && hatimProgress[reading.juz][reading.person];
                 html += `
                     <div class="reading-item ${isCompleted ? 'completed' : ''}">
                         <h4>${reading.person}</h4>
@@ -572,13 +572,18 @@
             container.innerHTML = '';
 
             for (let juz = 1; juz <= totalJuz; juz++) {
-                const section = document.createElement('div');
-                section.className = 'juz-section';
-
                 let completedCount = 0;
                 family.forEach(person => {
-                    if (hatimProgress[juz][person.name]) completedCount++;
+                    if (hatimProgress[juz] && hatimProgress[juz][person.name]) completedCount++;
                 });
+
+                // Eğer cüz tamamen tamamlandıysa gösterme
+                if (completedCount === 4) {
+                    continue;
+                }
+
+                const section = document.createElement('div');
+                section.className = 'juz-section';
 
                 section.innerHTML = `
                     <div class="juz-header">
@@ -592,7 +597,7 @@
 
                 const grid = document.getElementById(`juz-${juz}`);
                 family.forEach(person => {
-                    const isCompleted = hatimProgress[juz][person.name];
+                    const isCompleted = hatimProgress[juz] && hatimProgress[juz][person.name];
                     const block = document.createElement('div');
                     block.className = `page-block ${isCompleted ? 'completed' : ''}`;
                     block.onclick = () => toggleHatimPage(juz, person.name);
