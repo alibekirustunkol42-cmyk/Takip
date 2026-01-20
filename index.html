@@ -430,6 +430,9 @@
     </div>
 
     <script>
+        // Google Sheets API URL
+        const SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbyaEFCMNJtARfATbGDxVteIIuZNhgr9FQKqKd0Nx_19LLQGsbOBQ5uJCS3wqAwpixqh/exec';
+
         const family = [
             { name: 'Sait', hatimPages: [1, 2, 3, 4, 5], cevsenPages: '1-10', color: '#667eea' },
             { name: 'Ali', hatimPages: [6, 7, 8, 9, 10], cevsenPages: '11-41', color: '#764ba2' },
@@ -441,9 +444,67 @@
         let currentTab = 'hatim';
         let selectedDate = new Date().toISOString().split('T')[0];
 
-        // Initialize progress from localStorage
-        let hatimProgress = JSON.parse(localStorage.getItem('hatimProgress')) || {};
-        let cevsenProgress = JSON.parse(localStorage.getItem('cevsenProgress')) || {};
+        // Initialize progress - will be loaded from Google Sheets
+        let hatimProgress = {};
+        let cevsenProgress = {};
+        let isLoading = false;
+
+        // ========== GOOGLE SHEETS SYNC FUNCTIONS ==========
+        async function loadFromSheets() {
+            if (isLoading) return;
+            isLoading = true;
+            
+            try {
+                const response = await fetch(SHEETS_API_URL);
+                const data = await response.json();
+                
+                if (data.hatim) hatimProgress = data.hatim;
+                if (data.cevsen) cevsenProgress = data.cevsen;
+                
+                // Also save to localStorage as backup
+                localStorage.setItem('hatimProgress', JSON.stringify(hatimProgress));
+                localStorage.setItem('cevsenProgress', JSON.stringify(cevsenProgress));
+                
+                updateHatimDisplay();
+                updateCevsenDisplay();
+            } catch (error) {
+                console.error('Veri yüklenirken hata:', error);
+                // Fallback to localStorage
+                hatimProgress = JSON.parse(localStorage.getItem('hatimProgress')) || {};
+                cevsenProgress = JSON.parse(localStorage.getItem('cevsenProgress')) || {};
+                updateHatimDisplay();
+                updateCevsenDisplay();
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        async function saveToSheets() {
+            if (isLoading) return;
+            
+            try {
+                await fetch(SHEETS_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hatim: hatimProgress,
+                        cevsen: cevsenProgress
+                    })
+                });
+                
+                // Also save to localStorage as backup
+                localStorage.setItem('hatimProgress', JSON.stringify(hatimProgress));
+                localStorage.setItem('cevsenProgress', JSON.stringify(cevsenProgress));
+            } catch (error) {
+                console.error('Veri kaydedilirken hata:', error);
+                // Still save to localStorage
+                localStorage.setItem('hatimProgress', JSON.stringify(hatimProgress));
+                localStorage.setItem('cevsenProgress', JSON.stringify(cevsenProgress));
+            }
+        }
 
         function switchTab(tab) {
             currentTab = tab;
@@ -470,11 +531,11 @@
                     });
                 }
             }
-            saveHatimProgress();
+            saveToSheets();
         }
 
         function saveHatimProgress() {
-            localStorage.setItem('hatimProgress', JSON.stringify(hatimProgress));
+            saveToSheets();
             updateHatimDisplay();
         }
 
@@ -625,7 +686,7 @@
         }
 
         function saveCevsenProgress() {
-            localStorage.setItem('cevsenProgress', JSON.stringify(cevsenProgress));
+            saveToSheets();
             updateCevsenDisplay();
         }
 
@@ -732,10 +793,24 @@
         }
 
         // Initialize on load
-        initializeHatimProgress();
-        initializeCevsenProgress();
-        updateHatimDisplay();
-        updateCevsenDisplay();
+        async function init() {
+            // First, load from Google Sheets
+            await loadFromSheets();
+            
+            // If no data exists, initialize
+            if (Object.keys(hatimProgress).length === 0) {
+                initializeHatimProgress();
+            }
+            
+            updateHatimDisplay();
+            updateCevsenDisplay();
+            
+            // Reload data every 5 seconds to get updates from other users
+            setInterval(loadFromSheets, 5000);
+        }
+        
+        // Start the app
+        init();
     </script>
 </body>
 </html>
